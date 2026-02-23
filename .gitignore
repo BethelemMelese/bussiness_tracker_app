@@ -7,4 +7,8 @@ __v0_jsx-dev-runtime.ts
 node_modules/
 .next/
 .env*.local
+.env.example
+.env.local.example
+.env/local.example
+server/.env
 .DS_Store
