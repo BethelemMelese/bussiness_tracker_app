@@ -1,11 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, TrendingUp } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Plus, TrendingUp, Download, List, Pencil, RotateCcw } from 'lucide-react'
 import { api } from '@/lib/api'
+import { capitalToCsv, downloadCsv } from '@/lib/export-csv'
 
 interface CapitalData {
   monthlyIncome: number
@@ -24,26 +33,81 @@ export function CapitalTracker() {
   const [newIncome, setNewIncome] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState('')
+  const [editSavings, setEditSavings] = useState('')
+
+  const load = () =>
+    api.capital
+      .get()
+      .then(setData)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false))
 
   useEffect(() => {
-    api.capital.get()
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false))
+    load()
   }, [])
 
   const addIncome = async () => {
     if (!newIncome || isNaN(Number(newIncome))) return
     const amount = Number(newIncome)
     setSaving(true)
-    setError('')
     try {
       const updated = await api.capital.addIncome(amount)
       setData(updated)
       setNewIncome('')
+      toast.success('Income added')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add income')
+      toast.error(e instanceof Error ? e.message : 'Failed to add income')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleExport = () => {
+    try {
+      downloadCsv(capitalToCsv(data), `capital-${new Date().toISOString().split('T')[0]}.csv`)
+      toast.success('Exported to CSV')
+    } catch {
+      toast.error('Export failed')
+    }
+  }
+
+  const handleUpdate = async () => {
+    const target = editTarget === '' ? undefined : Number(editTarget)
+    const savings = editSavings === '' ? undefined : Number(editSavings)
+    if (target === undefined && savings === undefined) return
+    setSaving(true)
+    try {
+      const updated = await api.capital.update({
+        ...(target !== undefined && !isNaN(target) && { target }),
+        ...(savings !== undefined && !isNaN(savings) && { savings }),
+      })
+      setData(updated)
+      setEditTarget('')
+      setEditSavings('')
+      toast.success('Updated')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Update failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReset = async () => {
+    if (!confirm('Reset all capital data to zero?')) return
+    setSaving(true)
+    try {
+      const updated = await api.capital.update({
+        monthlyIncome: 0,
+        savings: 0,
+        target: data.target,
+      })
+      setData(updated)
+      setModalOpen(false)
+      toast.success('Capital reset')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Reset failed')
     } finally {
       setSaving(false)
     }
@@ -65,13 +129,73 @@ export function CapitalTracker() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold text-card-foreground">Capital Tracker</CardTitle>
-          <TrendingUp className="w-5 h-5 text-primary" />
+          <div className="flex items-center gap-1">
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="View all">
+                  <List className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Capital Tracker – View all</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-border p-4 space-y-2">
+                    <p className="text-sm text-muted-foreground">Monthly income</p>
+                    <p className="text-2xl font-bold">{data.monthlyIncome.toLocaleString()} birr</p>
+                    <p className="text-sm text-muted-foreground">Savings</p>
+                    <p className="text-2xl font-bold">{data.savings.toLocaleString()} birr</p>
+                    <p className="text-sm text-muted-foreground">Target</p>
+                    <p className="text-2xl font-bold">{data.target.toLocaleString()} birr</p>
+                    <p className="text-xs text-muted-foreground">
+                      Progress: {Math.min(savingsPercent, 100).toFixed(0)}%
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Edit</p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder={`Target (${data.target})`}
+                        value={editTarget}
+                        onChange={(e) => setEditTarget(e.target.value)}
+                        className="bg-input border-border"
+                      />
+                      <Input
+                        type="number"
+                        placeholder={`Savings (${data.savings})`}
+                        value={editSavings}
+                        onChange={(e) => setEditSavings(e.target.value)}
+                        className="bg-input border-border"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleUpdate} disabled={saving}>
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Update
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={handleReset} disabled={saving}>
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Reset
+                      </Button>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleExport} className="w-full">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExport} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </Button>
+            <TrendingUp className="w-5 h-5 text-primary" />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">Total Savings</p>
           <p className="text-3xl font-bold text-card-foreground">{data.savings.toLocaleString()} birr</p>

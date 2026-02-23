@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/form'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { registerSchema, type RegisterInput } from '@/lib/validations/auth'
+import { toast } from 'sonner'
 
 export default function RegisterPage() {
   const [error, setError] = useState('')
@@ -37,10 +38,13 @@ export default function RegisterPage() {
     setError('')
     try {
       await register(data.email, data.password, data.name)
+      toast.success('Account created!')
       router.push('/')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed')
+      const msg = err instanceof Error ? err.message : 'Registration failed'
+      setError(msg)
+      toast.error(msg)
     }
   }
 

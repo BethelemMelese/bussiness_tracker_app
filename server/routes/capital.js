@@ -29,11 +29,19 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   try {
     const { monthlyIncome, savings, target } = req.body
-    const doc = await Capital.findOneAndUpdate(
-      { userId: req.user._id },
-      { $set: { monthlyIncome, savings, target } },
-      { new: true, upsert: true }
-    )
+    let doc = await Capital.findOne({ userId: req.user._id })
+    if (!doc) {
+      doc = await Capital.create({
+        userId: req.user._id,
+        monthlyIncome: 0,
+        savings: 0,
+        target: 10000,
+      })
+    }
+    if (monthlyIncome !== undefined) doc.monthlyIncome = Number(monthlyIncome) ?? 0
+    if (savings !== undefined) doc.savings = Number(savings) ?? 0
+    if (target !== undefined) doc.target = Number(target) ?? 10000
+    await doc.save()
     res.json({
       monthlyIncome: doc.monthlyIncome,
       savings: doc.savings,

@@ -57,7 +57,7 @@ router.post('/habit', async (req, res) => {
 
 router.put('/habit/:id', async (req, res) => {
   try {
-    const { checkedDays, habitFormed } = req.body
+    const { checkedDays, habitFormed, name } = req.body
 
     const doc = await Discipline.findOne({ userId: req.user._id })
     if (!doc) return res.status(404).json({ message: 'Not found' })
@@ -65,6 +65,7 @@ router.put('/habit/:id', async (req, res) => {
     const habit = doc.habits.id(req.params.id)
     if (!habit) return res.status(404).json({ message: 'Habit not found' })
 
+    if (name != null && String(name).trim()) habit.name = String(name).trim()
     if (Array.isArray(checkedDays)) habit.checkedDays = checkedDays
     if (typeof habitFormed === 'boolean') habit.habitFormed = habitFormed
     await doc.save()

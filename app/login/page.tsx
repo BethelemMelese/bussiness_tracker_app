@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/form'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { loginSchema, type LoginInput } from '@/lib/validations/auth'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const [error, setError] = useState('')
@@ -37,10 +38,13 @@ export default function LoginPage() {
     setError('')
     try {
       await login(data.email, data.password)
+      toast.success('Welcome back!')
       router.push('/')
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const msg = err instanceof Error ? err.message : 'Login failed'
+      setError(msg)
+      toast.error(msg)
     }
   }
 

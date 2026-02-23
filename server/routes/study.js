@@ -62,6 +62,38 @@ router.post('/session', async (req, res) => {
   }
 })
 
+router.put('/session/:id', async (req, res) => {
+  try {
+    const { hours, topic, date } = req.body
+    const doc = await Study.findOne({ userId: req.user._id })
+    if (!doc) return res.status(404).json({ message: 'Not found' })
+
+    const entry = doc.topics.id(req.params.id)
+    if (!entry) return res.status(404).json({ message: 'Session not found' })
+
+    const h = Number(hours)
+    if (!isNaN(h) && h > 0) {
+      doc.dailyHours = doc.dailyHours - entry.hours + h
+      entry.hours = h
+    }
+    if (topic != null) entry.topic = String(topic)
+    if (date != null) entry.date = String(date)
+    await doc.save()
+
+    res.json({
+      dailyHours: doc.dailyHours,
+      topics: doc.topics.map((t) => ({
+        id: t._id.toString(),
+        hours: t.hours,
+        topic: t.topic,
+        date: t.date,
+      })),
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 router.delete('/session/:id', async (req, res) => {
   try {
     const doc = await Study.findOne({ userId: req.user._id })

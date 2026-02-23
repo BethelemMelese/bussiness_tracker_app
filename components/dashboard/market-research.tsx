@@ -1,11 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, BarChart3, X, Download } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Plus, BarChart3, X, Download, List, Pencil } from 'lucide-react'
 import { api } from '@/lib/api'
+import { marketToCsv, downloadCsv } from '@/lib/export-csv'
 
 interface ResearchItem {
   id: string
@@ -26,34 +35,7 @@ const DEFAULT_MARKET: MarketData = {
   suppliers: [],
 }
 
-const generateCSV = (data: MarketData): string => {
-  const allItems = [
-    ...data.stores.map((item) => ({ ...item, category: 'Store' })),
-    ...data.competitors.map((item) => ({ ...item, category: 'Competitor' })),
-    ...data.suppliers.map((item) => ({ ...item, category: 'Supplier' })),
-  ]
-
-  const headers = ['Category', 'Name', 'Notes']
-  const rows = allItems.map((item) => [
-    item.category,
-    `"${item.name.replace(/"/g, '""')}"`,
-    `"${(item.notes || '').replace(/"/g, '""')}"`,
-  ])
-
-  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-  return csv
-}
-
-const downloadCSV = (data: MarketData) => {
-  const csv = generateCSV(data)
-  const timestamp = new Date().toISOString().split('T')[0]
-  const filename = `market-research-${timestamp}.csv`
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename
-  link.click()
-}
+const CAT_LABELS = { store: 'Store', competitor: 'Competitor', supplier: 'Supplier' } as const
 
 export function MarketResearch() {
   const [data, setData] = useState<MarketData>(DEFAULT_MARKET)
@@ -62,39 +44,78 @@ export function MarketResearch() {
   const [selectedCategory, setSelectedCategory] = useState<'store' | 'competitor' | 'supplier'>('store')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<ResearchItem | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editCategory, setEditCategory] = useState<'store' | 'competitor' | 'supplier'>('store')
 
-  useEffect(() => {
+  const load = () =>
     api.market
       .get()
       .then(setData)
-      .catch((e) => setError(e.message))
+      .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false))
+
+  useEffect(() => {
+    load()
   }, [])
 
   const addItem = async () => {
     if (!newName) return
     setSaving(true)
-    setError('')
     try {
       const res = await api.market.addItem(newName, selectedCategory, newNotes)
       setData(res)
       setNewName('')
       setNewNotes('')
+      toast.success('Item added')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add item')
+      toast.error(e instanceof Error ? e.message : 'Failed to add item')
     } finally {
       setSaving(false)
     }
   }
 
   const removeItem = async (id: string, category: 'store' | 'competitor' | 'supplier') => {
-    setError('')
     try {
       const res = await api.market.deleteItem(category, id)
       setData(res)
+      toast.success('Item removed')
+      if (editingItem?.id === id) setEditingItem(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to remove')
+      toast.error(e instanceof Error ? e.message : 'Failed to remove')
+    }
+  }
+
+  const updateItem = async () => {
+    if (!editingItem) return
+    if (!editName.trim()) return
+    setSaving(true)
+    try {
+      const res = await api.market.updateItem(editingItem.category, editingItem.id, {
+        name: editName.trim(),
+        notes: editNotes,
+        ...(editCategory !== editingItem.category && { category: editCategory }),
+      })
+      setData(res)
+      setEditingItem(null)
+      setEditName('')
+      setEditNotes('')
+      toast.success('Item updated')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleExport = () => {
+    try {
+      downloadCsv(marketToCsv(data), `market-research-${new Date().toISOString().split('T')[0]}.csv`)
+      toast.success('Exported to CSV')
+    } catch {
+      toast.error('Export failed')
     }
   }
 
@@ -107,6 +128,11 @@ export function MarketResearch() {
   }
 
   const totalItems = data.stores.length + data.competitors.length + data.suppliers.length
+  const allItems = [
+    ...data.stores.map((i) => ({ ...i, category: 'store' as const })),
+    ...data.competitors.map((i) => ({ ...i, category: 'competitor' as const })),
+    ...data.suppliers.map((i) => ({ ...i, category: 'supplier' as const })),
+  ]
 
   return (
     <Card className="bg-card border-border">
@@ -114,19 +140,102 @@ export function MarketResearch() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold text-card-foreground">Market Research</CardTitle>
           <div className="flex gap-2">
-            <button
-              onClick={() => downloadCSV(data)}
-              className="p-2 hover:bg-muted rounded transition"
-              title="Download as CSV"
-            >
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" title="View all">
+                  <List className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Market Research – View all</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    Stores: {data.stores.length} · Competitors: {data.competitors.length} · Suppliers: {data.suppliers.length}
+                  </div>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {allItems.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No items yet.</p>
+                    ) : editingItem ? (
+                      <div className="space-y-2 p-2 rounded border border-border">
+                        <Input
+                          placeholder="Name"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="bg-input"
+                        />
+                        <Input
+                          placeholder="Notes"
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          className="bg-input"
+                        />
+                        <select
+                          value={editCategory}
+                          onChange={(e) => setEditCategory(e.target.value as 'store' | 'competitor' | 'supplier')}
+                          className="w-full px-3 py-2 rounded-md bg-input border border-border text-sm"
+                        >
+                          <option value="store">Store</option>
+                          <option value="competitor">Competitor</option>
+                          <option value="supplier">Supplier</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={updateItem} disabled={saving}>Save</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingItem(null)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      allItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded border border-border"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">{CAT_LABELS[item.category]}</p>
+                            {item.notes && <p className="text-xs text-muted-foreground truncate">{item.notes}</p>}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => {
+                              setEditingItem(item)
+                              setEditName(item.name)
+                              setEditNotes(item.notes || '')
+                              setEditCategory(item.category)
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-destructive"
+                            onClick={() => removeItem(item.id, item.category)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleExport} className="w-full">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExport} title="Export CSV">
               <Download className="w-5 h-5 text-accent" />
-            </button>
+            </Button>
             <BarChart3 className="w-5 h-5 text-accent" />
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-xs text-muted-foreground">Stores</p>
@@ -153,28 +262,7 @@ export function MarketResearch() {
               <div>
                 <p className="text-muted-foreground">With Notes</p>
                 <p className="font-bold text-card-foreground text-lg">
-                  {[...data.stores, ...data.competitors, ...data.suppliers].filter((i) => i.notes).length}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Avg Notes/Item</p>
-                <p className="font-bold text-card-foreground text-lg">
-                  {(
-                    [...data.stores, ...data.competitors, ...data.suppliers].reduce(
-                      (sum, i) => sum + (i.notes ? i.notes.split(' ').length : 0),
-                      0
-                    ) / Math.max(totalItems, 1)
-                  ).toFixed(1)}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Top Category</p>
-                <p className="font-bold text-card-foreground">
-                  {['Stores', 'Competitors', 'Suppliers'][
-                    [data.stores.length, data.competitors.length, data.suppliers.length].indexOf(
-                      Math.max(data.stores.length, data.competitors.length, data.suppliers.length)
-                    )
-                  ]}
+                  {allItems.filter((i) => i.notes).length}
                 </p>
               </div>
             </div>
@@ -196,14 +284,14 @@ export function MarketResearch() {
             placeholder="Name"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            className="bg-input border-border text-card-foreground placeholder:text-muted-foreground"
+            className="bg-input border-border"
           />
           <Input
             type="text"
             placeholder="Notes"
             value={newNotes}
             onChange={(e) => setNewNotes(e.target.value)}
-            className="bg-input border-border text-card-foreground placeholder:text-muted-foreground"
+            className="bg-input border-border"
             onKeyPress={(e) => e.key === 'Enter' && addItem()}
           />
           <Button
