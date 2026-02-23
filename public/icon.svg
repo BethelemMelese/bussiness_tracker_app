@@ -1,0 +1,23 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #0f172a; }
+      .fg { fill: #ffffff; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #f8fafc; }
+      .fg { fill: #0f172a; }
+    }
+  </style>
+  <rect class="bg" width="32" height="32" rx="8"/>
+  <g class="fg">
+    <!-- T bar -->
+    <rect x="6" y="10" width="20" height="2"/>
+    <!-- T stem -->
+    <rect x="14" y="12" width="4" height="12"/>
+    <!-- Chart bars -->
+    <rect x="8" y="18" width="3" height="6"/>
+    <rect x="13" y="16" width="3" height="8"/>
+    <rect x="21" y="14" width="3" height="10"/>
+  </g>
+</svg>
