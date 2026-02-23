@@ -51,5 +51,12 @@ app.get('/api/health', (req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
+  const baseUrl =
+    process.env.API_BASE_URL ||
+    process.env.BASE_URL ||
+    (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.RAILWAY_STATIC_URL ||
+    `http://localhost:${PORT}`
+  console.log(`Server running on ${baseUrl}`)
 })
