@@ -1,5 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'
 
+console.log("API_BASE", API_BASE)
+
 type MarketItem = { id: string; name: string; category: 'store' | 'competitor' | 'supplier'; notes: string }
 type MarketResponse = { stores: MarketItem[]; competitors: MarketItem[]; suppliers: MarketItem[] }
 
