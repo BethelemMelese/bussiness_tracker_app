@@ -108,4 +108,20 @@ router.delete('/item/:category/:id', async (req, res) => {
   }
 })
 
+router.delete('/', async (req, res) => {
+  try {
+    let doc = await Market.findOne({ userId: req.user._id })
+    if (!doc) {
+      doc = await Market.create({ userId: req.user._id })
+    }
+    doc.stores = []
+    doc.competitors = []
+    doc.suppliers = []
+    await doc.save()
+    res.json(toResponse(doc))
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 export default router

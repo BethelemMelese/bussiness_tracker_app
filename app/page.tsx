@@ -70,7 +70,7 @@ export default function Dashboard() {
               variant="outline"
               size="icon"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 border-border text-foreground hover:bg-muted"
+              className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 border-border text-foreground hover:bg-black/5 dark:hover:bg-white/10"
               aria-label="Toggle theme"
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -79,7 +79,7 @@ export default function Dashboard() {
               variant="outline"
               size="icon"
               onClick={handleLogout}
-              className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 border-border text-foreground hover:bg-muted"
+              className="h-10 w-10 sm:h-9 sm:w-9 shrink-0 border-border text-foreground hover:bg-black/5 dark:hover:bg-white/10"
               aria-label="Log out"
             >
               <LogOut className="h-4 w-4" />

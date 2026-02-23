@@ -12,7 +12,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, BookOpen, X, Download, List, Pencil } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Plus, BookOpen, X, Download, List, Pencil, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { studyToCsv, downloadCsv } from '@/lib/export-csv'
 
@@ -43,6 +53,7 @@ export function StudyTracker() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editHours, setEditHours] = useState('')
   const [editTopic, setEditTopic] = useState('')
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
 
   const load = () =>
     api.study
@@ -110,6 +121,19 @@ export function StudyTracker() {
       toast.success('Exported to CSV')
     } catch {
       toast.error('Export failed')
+    }
+  }
+
+  const deleteAll = async () => {
+    try {
+      const res = await api.study.deleteAll()
+      setData({ dailyHours: res.dailyHours, topics: res.topics })
+      setEditingId(null)
+      setDeleteAllConfirmOpen(false)
+      setModalOpen(false)
+      toast.success('All study sessions deleted')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete all')
     }
   }
 
@@ -212,6 +236,35 @@ export function StudyTracker() {
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
                   </Button>
+                  {data.topics.length > 0 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-destructive border-destructive/50 hover:bg-destructive/10"
+                        onClick={() => setDeleteAllConfirmOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete all
+                      </Button>
+                      <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete all study sessions?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove all study sessions and reset total hours. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={deleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Delete all
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>

@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { DollarSign, Download, List, RotateCcw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { financialToCsv, downloadCsv } from '@/lib/export-csv'
@@ -34,6 +44,7 @@ export function FinancialModel() {
   const [data, setData] = useState<FinancialData>(DEFAULT_FINANCIAL)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   const load = () =>
     api.financial
@@ -59,7 +70,6 @@ export function FinancialModel() {
   }
 
   const handleReset = async () => {
-    if (!confirm('Reset all financial data to zero?')) return
     try {
       await api.financial.update({
         costPerUnit: 0,
@@ -69,6 +79,7 @@ export function FinancialModel() {
       })
       setData(DEFAULT_FINANCIAL)
       setModalOpen(false)
+      setResetConfirmOpen(false)
       toast.success('Financial data reset')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Reset failed')
@@ -158,10 +169,32 @@ export function FinancialModel() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="destructive" size="sm" onClick={handleReset}>
+                    <Button variant="destructive" size="sm" onClick={() => setResetConfirmOpen(true)}>
                       <RotateCcw className="h-4 w-4 mr-1" />
                       Reset all
                     </Button>
+                    <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Reset financial data?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Reset all financial model data (cost, price, fixed costs, units) to zero? This cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={(e) => {
+                              e.preventDefault()
+                              handleReset()
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Reset all
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                     <Button variant="outline" size="sm" onClick={handleExport}>
                       <Download className="h-4 w-4 mr-1" />
                       Export CSV

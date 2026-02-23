@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Plus, TrendingUp, Download, List, Pencil, RotateCcw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { capitalToCsv, downloadCsv } from '@/lib/export-csv'
@@ -34,6 +44,7 @@ export function CapitalTracker() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [editTarget, setEditTarget] = useState('')
   const [editSavings, setEditSavings] = useState('')
 
@@ -95,7 +106,6 @@ export function CapitalTracker() {
   }
 
   const handleReset = async () => {
-    if (!confirm('Reset all capital data to zero?')) return
     setSaving(true)
     try {
       const updated = await api.capital.update({
@@ -105,6 +115,7 @@ export function CapitalTracker() {
       })
       setData(updated)
       setModalOpen(false)
+      setResetConfirmOpen(false)
       toast.success('Capital reset')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Reset failed')
@@ -155,30 +166,58 @@ export function CapitalTracker() {
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Edit</p>
                     <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        placeholder={`Target (${data.target})`}
-                        value={editTarget}
-                        onChange={(e) => setEditTarget(e.target.value)}
-                        className="bg-input border-border"
-                      />
-                      <Input
-                        type="number"
-                        placeholder={`Savings (${data.savings})`}
-                        value={editSavings}
-                        onChange={(e) => setEditSavings(e.target.value)}
-                        className="bg-input border-border"
-                      />
+                      <div className="flex-1 space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Target</label>
+                        <Input
+                          type="number"
+                          placeholder={`${data.target}`}
+                          value={editTarget}
+                          onChange={(e) => setEditTarget(e.target.value)}
+                          className="bg-input border-border"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Savings</label>
+                        <Input
+                          type="number"
+                          placeholder={`${data.savings}`}
+                          value={editSavings}
+                          onChange={(e) => setEditSavings(e.target.value)}
+                          className="bg-input border-border"
+                        />
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mt-5">
                       <Button size="sm" onClick={handleUpdate} disabled={saving}>
                         <Pencil className="h-4 w-4 mr-1" />
                         Update
                       </Button>
-                      <Button size="sm" variant="destructive" onClick={handleReset} disabled={saving}>
+                      <Button size="sm" variant="destructive" onClick={() => setResetConfirmOpen(true)} disabled={saving}>
                         <RotateCcw className="h-4 w-4 mr-1" />
                         Reset
                       </Button>
+                      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset capital?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Reset all capital data (income and savings) to zero? Your target will be kept. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={(e) => {
+                                e.preventDefault()
+                                handleReset()
+                              }}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Reset
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                   <Button variant="outline" size="sm" onClick={handleExport} className="w-full">

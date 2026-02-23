@@ -120,4 +120,27 @@ router.delete('/session/:id', async (req, res) => {
   }
 })
 
+router.delete('/', async (req, res) => {
+  try {
+    let doc = await Study.findOne({ userId: req.user._id })
+    if (!doc) {
+      doc = await Study.create({ userId: req.user._id })
+    }
+    doc.dailyHours = 0
+    doc.topics = []
+    await doc.save()
+    res.json({
+      dailyHours: doc.dailyHours,
+      topics: doc.topics.map((t) => ({
+        id: t._id.toString(),
+        hours: t.hours,
+        topic: t.topic,
+        date: t.date,
+      })),
+    })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 export default router

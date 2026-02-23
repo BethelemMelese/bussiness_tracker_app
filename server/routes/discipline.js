@@ -44,7 +44,7 @@ router.post('/habit', async (req, res) => {
     doc.habits.unshift({
       name: name.trim(),
       checkedDays: Array(21).fill(false),
-      startDate: new Date().toLocaleDateString(),
+      startDate: new Date().toISOString().slice(0, 10),
       habitFormed: false,
     })
     await doc.save()
@@ -57,7 +57,7 @@ router.post('/habit', async (req, res) => {
 
 router.put('/habit/:id', async (req, res) => {
   try {
-    const { checkedDays, habitFormed, name } = req.body
+    const { checkedDays, habitFormed, name, startDate } = req.body
 
     const doc = await Discipline.findOne({ userId: req.user._id })
     if (!doc) return res.status(404).json({ message: 'Not found' })
@@ -68,6 +68,7 @@ router.put('/habit/:id', async (req, res) => {
     if (name != null && String(name).trim()) habit.name = String(name).trim()
     if (Array.isArray(checkedDays)) habit.checkedDays = checkedDays
     if (typeof habitFormed === 'boolean') habit.habitFormed = habitFormed
+    if (startDate != null && String(startDate).trim()) habit.startDate = String(startDate).trim()
     await doc.save()
 
     res.json(toResponse(doc))
@@ -87,6 +88,20 @@ router.delete('/habit/:id', async (req, res) => {
     doc.habits.pull(req.params.id)
     await doc.save()
 
+    res.json(toResponse(doc))
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
+router.delete('/', async (req, res) => {
+  try {
+    let doc = await Discipline.findOne({ userId: req.user._id })
+    if (!doc) {
+      doc = await Discipline.create({ userId: req.user._id })
+    }
+    doc.habits = []
+    await doc.save()
     res.json(toResponse(doc))
   } catch (error) {
     res.status(500).json({ message: error.message })

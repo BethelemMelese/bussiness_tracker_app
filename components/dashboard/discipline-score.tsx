@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Plus, Trash2, Download, List, Pencil } from 'lucide-react'
 import { api } from '@/lib/api'
 import { disciplineToCsv, downloadCsv } from '@/lib/export-csv'
@@ -32,6 +42,57 @@ const DEFAULT_DISCIPLINE: DisciplineData = {
   habits: [],
 }
 
+/** Today as YYYY-MM-DD (local timezone) */
+function dateToday(): string {
+  const n = new Date()
+  const y = n.getFullYear()
+  const m = String(n.getMonth() + 1).padStart(2, '0')
+  const d = String(n.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Parse startDate string to a Date at noon for stable day math */
+function parseStartDate(s: string): Date {
+  if (!s?.trim()) return new Date()
+  const iso = s.trim().slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return new Date(iso + 'T12:00:00')
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? new Date() : d
+}
+
+/** Day index (0–20) for today relative to habit startDate; -1 if before start, 21+ if past window */
+function getDayIndex(startDateStr: string): number {
+  const start = parseStartDate(startDateStr)
+  const today = new Date()
+  today.setHours(12, 0, 0, 0)
+  const diffMs = today.getTime() - start.getTime()
+  return Math.floor(diffMs / (24 * 60 * 60 * 1000))
+}
+
+/** Whether habit should reset: missed yesterday or past window without completing */
+function needsReset(habit: DisciplineItem): boolean {
+  const checkedDays = habit.checkedDays || Array(21).fill(false)
+  const dayIndex = getDayIndex(habit.startDate || dateToday())
+  if (dayIndex < 0) return false
+  if (dayIndex >= 1 && dayIndex <= 20) {
+    if (!checkedDays[dayIndex - 1]) return true
+    return false
+  }
+  if (dayIndex > 20) {
+    const allChecked = checkedDays.length === 21 && checkedDays.every(Boolean)
+    return !allChecked
+  }
+  return false
+}
+
+/** Format date for display (e.g. "Feb 22") */
+function formatDayLabel(startDateStr: string, dayOffset: number): string {
+  const start = parseStartDate(startDateStr)
+  const d = new Date(start)
+  d.setDate(d.getDate() + dayOffset)
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 export function DisciplineScore() {
   const [data, setData] = useState<DisciplineData>(DEFAULT_DISCIPLINE)
   const [newHabit, setNewHabit] = useState('')
@@ -40,13 +101,34 @@ export function DisciplineScore() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
 
-  const load = () =>
-    api.discipline
-      .get()
-      .then((res) => setData({ habits: res.habits }))
-      .catch((e) => toast.error(e.message))
-      .finally(() => setLoading(false))
+  const load = async () => {
+    try {
+      const res = await api.discipline.get()
+      let habits = res.habits
+      const toReset = habits.filter(needsReset)
+      if (toReset.length > 0) {
+        const todayStr = dateToday()
+        await Promise.all(
+          toReset.map((h) =>
+            api.discipline.updateHabit(h.id, {
+              startDate: todayStr,
+              checkedDays: Array(21).fill(false),
+              habitFormed: false,
+            })
+          )
+        )
+        const res2 = await api.discipline.get()
+        habits = res2.habits
+      }
+      setData({ habits })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     load()
@@ -71,21 +153,12 @@ export function DisciplineScore() {
     const habit = data.habits.find((h) => h.id === habitId)
     if (!habit) return
 
+    const currentDayIndex = getDayIndex(habit.startDate || dateToday())
+    if (dayIndex !== currentDayIndex || currentDayIndex < 0 || currentDayIndex > 20) return
+
     const newCheckedDays = [...(habit.checkedDays || Array(21).fill(false))]
-    if (newCheckedDays[dayIndex]) {
-      newCheckedDays[dayIndex] = false
-    } else {
-      const allPreviousDaysChecked = newCheckedDays.slice(0, dayIndex).every((d) => d === true)
-      if (allPreviousDaysChecked || dayIndex === 0) {
-        newCheckedDays[dayIndex] = true
-      } else {
-        for (let i = 0; i < newCheckedDays.length; i++) {
-          newCheckedDays[i] = false
-        }
-        newCheckedDays[0] = true
-      }
-    }
-    const allChecked = newCheckedDays.length === 21 && newCheckedDays.every((d) => d === true)
+    newCheckedDays[dayIndex] = !newCheckedDays[dayIndex]
+    const allChecked = newCheckedDays.length === 21 && newCheckedDays.every(Boolean)
 
     try {
       const res = await api.discipline.updateHabit(habitId, {
@@ -132,6 +205,19 @@ export function DisciplineScore() {
       toast.success('Exported to CSV')
     } catch {
       toast.error('Export failed')
+    }
+  }
+
+  const deleteAll = async () => {
+    try {
+      const res = await api.discipline.deleteAll()
+      setData({ habits: res.habits })
+      setEditingId(null)
+      setDeleteAllConfirmOpen(false)
+      setModalOpen(false)
+      toast.success('All habits deleted')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete all')
     }
   }
 
@@ -237,6 +323,35 @@ export function DisciplineScore() {
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
                   </Button>
+                  {data.habits.length > 0 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-destructive border-destructive/50 hover:bg-destructive/10"
+                        onClick={() => setDeleteAllConfirmOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete all
+                      </Button>
+                      <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete all habits?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove all habits and their progress. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={deleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Delete all
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -277,6 +392,9 @@ export function DisciplineScore() {
               const checkedDays = habit.checkedDays || Array(21).fill(false)
               const checkedCount = checkedDays.filter((d) => d === true).length
               const progress = (checkedCount / 21) * 100
+              const startDateStr = habit.startDate || dateToday()
+              const currentDayIndex = getDayIndex(startDateStr)
+              const isTodayCheckable = currentDayIndex >= 0 && currentDayIndex <= 20
 
               return (
                 <div key={habit.id} className="border border-border rounded-lg p-3 space-y-2">
@@ -304,22 +422,35 @@ export function DisciplineScore() {
                   </div>
 
                   <div className="grid grid-cols-7 gap-1">
-                    {checkedDays.map((isChecked, dayIndex) => (
-                      <button
-                        key={`${habit.id}-day-${dayIndex}`}
-                        onClick={() => toggleDay(habit.id, dayIndex)}
-                        type="button"
-                        className={`aspect-square rounded text-xs font-semibold transition flex items-center justify-center ${
-                          isChecked
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted border border-border hover:border-muted-foreground/50 text-muted-foreground'
-                        }`}
-                        title={`Day ${dayIndex + 1}`}
-                      >
-                        {dayIndex + 1}
-                      </button>
-                    ))}
+                    {checkedDays.map((isChecked, dayIndex) => {
+                      const isToday = dayIndex === currentDayIndex
+                      const canToggle = isTodayCheckable && isToday
+                      return (
+                        <button
+                          key={`${habit.id}-day-${dayIndex}`}
+                          onClick={() => canToggle && toggleDay(habit.id, dayIndex)}
+                          type="button"
+                          disabled={!canToggle}
+                          className={`aspect-square rounded text-xs font-semibold transition flex items-center justify-center ${
+                            !canToggle
+                              ? 'bg-muted/50 border border-border text-muted-foreground cursor-not-allowed'
+                              : isChecked
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted border border-border hover:border-muted-foreground/50 text-muted-foreground'
+                          }`}
+                          title={canToggle ? `Today – check to mark day ${dayIndex + 1}` : `${formatDayLabel(startDateStr, dayIndex)} (Day ${dayIndex + 1})`}
+                        >
+                          {dayIndex + 1}
+                        </button>
+                      )
+                    })}
                   </div>
+
+                  {!habit.habitFormed && isTodayCheckable && (
+                    <p className="text-xs text-muted-foreground">
+                      Check today&apos;s box to keep your streak. Miss a day and progress resets.
+                    </p>
+                  )}
 
                   {habit.habitFormed && (
                     <div className="text-center py-2 rounded-lg bg-primary/10 border border-primary/20">

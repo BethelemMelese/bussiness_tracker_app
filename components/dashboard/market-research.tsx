@@ -12,7 +12,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, BarChart3, X, Download, List, Pencil } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Plus, BarChart3, X, Download, List, Pencil, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { marketToCsv, downloadCsv } from '@/lib/export-csv'
 
@@ -49,11 +59,12 @@ export function MarketResearch() {
   const [editName, setEditName] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editCategory, setEditCategory] = useState<'store' | 'competitor' | 'supplier'>('store')
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
 
   const load = () =>
     api.market
       .get()
-      .then(setData)
+      .then((res) => setData(res as MarketData))
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false))
 
@@ -66,7 +77,7 @@ export function MarketResearch() {
     setSaving(true)
     try {
       const res = await api.market.addItem(newName, selectedCategory, newNotes)
-      setData(res)
+      setData(res as MarketData)
       setNewName('')
       setNewNotes('')
       toast.success('Item added')
@@ -80,7 +91,7 @@ export function MarketResearch() {
   const removeItem = async (id: string, category: 'store' | 'competitor' | 'supplier') => {
     try {
       const res = await api.market.deleteItem(category, id)
-      setData(res)
+      setData(res as MarketData)
       toast.success('Item removed')
       if (editingItem?.id === id) setEditingItem(null)
     } catch (e) {
@@ -98,7 +109,7 @@ export function MarketResearch() {
         notes: editNotes,
         ...(editCategory !== editingItem.category && { category: editCategory }),
       })
-      setData(res)
+      setData(res as MarketData)
       setEditingItem(null)
       setEditName('')
       setEditNotes('')
@@ -116,6 +127,19 @@ export function MarketResearch() {
       toast.success('Exported to CSV')
     } catch {
       toast.error('Export failed')
+    }
+  }
+
+  const deleteAll = async () => {
+    try {
+      const res = await api.market.deleteAll()
+      setData(res as MarketData)
+      setEditingItem(null)
+      setDeleteAllConfirmOpen(false)
+      setModalOpen(false)
+      toast.success('All market research items deleted')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete all')
     }
   }
 
@@ -225,13 +249,42 @@ export function MarketResearch() {
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
                   </Button>
+                  {totalItems > 0 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-destructive border-destructive/50 hover:bg-destructive/10"
+                        onClick={() => setDeleteAllConfirmOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete all
+                      </Button>
+                      <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete all market research?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove all stores, competitors, and suppliers. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={deleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Delete all
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleExport} title="Export CSV">
               <Download className="w-5 h-5 text-accent" />
             </Button>
-            <BarChart3 className="w-5 h-5 text-accent" />
+            <BarChart3 className="w-5 h-5 text-accent mt-1" />
           </div>
         </div>
       </CardHeader>
