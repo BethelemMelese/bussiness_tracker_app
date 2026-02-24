@@ -1,6 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'
-
-console.log("API_BASE", API_BASE)
+// In browser without env: use same origin (e.g. Vercel single deploy). Else localhost for dev.
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:4000/api')
 
 type MarketItem = { id: string; name: string; category: 'store' | 'competitor' | 'supplier'; notes: string }
 type MarketResponse = { stores: MarketItem[]; competitors: MarketItem[]; suppliers: MarketItem[] }

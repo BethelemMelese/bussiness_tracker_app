@@ -35,5 +35,6 @@ export async function connectDB() {
     }
   }
   console.error('MongoDB connection failed:', lastError.message)
+  if (process.env.VERCEL === '1') throw lastError
   process.exit(1)
 }
