@@ -39,4 +39,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tracker API is running' })
 })
 
+// Ensure errors from async routes/middleware send a response (avoids hanging in serverless)
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err)
+  res.status(500).json({ message: err.message || 'Internal server error' })
+})
+
 export default app

@@ -5,6 +5,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Readable } from 'stream'
 
+// Allow time for MongoDB cold start on first request
+export const maxDuration = 60
+
+const RESPONSE_TIMEOUT_MS = 28000
+
 async function runExpress(req: NextRequest, pathSegments: string[]) {
   const pathname = '/api/' + (pathSegments?.join('/') || '')
   const url = pathname + (req.nextUrl.search || '')
@@ -16,10 +21,16 @@ async function runExpress(req: NextRequest, pathSegments: string[]) {
   const app = (await import('../../../server/app.js')).default
   await connectDB()
 
-  return new Promise<NextResponse>((resolve) => {
+  const responsePromise = new Promise<NextResponse>((resolve) => {
     const chunks: Buffer[] = []
     let statusCode = 200
     const resHeaders: Record<string, string> = {}
+    let resolved = false
+    const finish = (r: NextResponse) => {
+      if (resolved) return
+      resolved = true
+      resolve(r)
+    }
 
     const nodeRes = {
       statusCode: 200,
@@ -36,7 +47,7 @@ async function runExpress(req: NextRequest, pathSegments: string[]) {
       },
       end(chunk?: Buffer | string) {
         if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-        resolve(new NextResponse(Buffer.concat(chunks), { status: statusCode, headers: resHeaders }))
+        finish(new NextResponse(Buffer.concat(chunks), { status: statusCode, headers: resHeaders }))
       },
       status(code: number) {
         statusCode = code
@@ -44,7 +55,7 @@ async function runExpress(req: NextRequest, pathSegments: string[]) {
       },
       json(body: unknown) {
         resHeaders['content-type'] = 'application/json'
-        resolve(new NextResponse(JSON.stringify(body), { status: statusCode, headers: resHeaders }))
+        finish(new NextResponse(JSON.stringify(body), { status: statusCode, headers: resHeaders }))
       },
     }
 
@@ -59,6 +70,19 @@ async function runExpress(req: NextRequest, pathSegments: string[]) {
 
     app(nodeReq as any, nodeRes as any)
   })
+
+  const timeoutPromise = new Promise<NextResponse>((resolve) => {
+    setTimeout(() => {
+      resolve(
+        new NextResponse(
+          JSON.stringify({ message: 'Request timeout. Try again.' }),
+          { status: 504, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    }, RESPONSE_TIMEOUT_MS)
+  })
+
+  return Promise.race([responsePromise, timeoutPromise])
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path?: string[] }> }) {

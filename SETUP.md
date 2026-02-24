@@ -76,28 +76,55 @@ Starts the Next.js app on `http://localhost:3000`.
 
 All data routes require a valid JWT in the `Authorization: Bearer <token>` header.
 
-## Deploying to Vercel (one project: frontend + API)
+## Deploying backend on Vercel (separate project) — recommended
 
-The app is set up so **one Vercel deployment** serves both the Next.js frontend and the Express API. The API runs as a serverless function at `/api/*` (e.g. `/api/auth/login`).
+You can deploy the **Express API as its own Vercel project**. Same repo, two projects: one for the Next.js frontend, one for the API.
 
-### 1. Deploy
+### 1. Backend project on Vercel
 
-Connect the repo to Vercel and deploy as usual (no custom build; default Next.js build is used).
+1. In [Vercel Dashboard](https://vercel.com/dashboard), click **Add New…** → **Project**.
+2. Import the **same Git repo** as your frontend.
+3. **Root Directory:** click **Edit**, choose **server** (the `server` folder only).
+4. **Framework Preset:** choose **Other** (Vercel will run the Express app as a serverless function).
+5. **Build Command:** leave empty (or remove any default).
+6. **Output Directory:** leave empty.
+7. Deploy.
 
-### 2. Environment variables (Vercel project → Settings → Environment Variables)
+After deploy, you’ll get a URL like `https://tracker-api-xxx.vercel.app`. The API base for the frontend is that URL + `/api`, e.g. `https://tracker-api-xxx.vercel.app/api`.
 
-Set these for **Production** (and Preview if you use it):
+### 2. Backend environment variables
 
-| Variable | Example | Required |
-|----------|---------|---------|
-| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/tracker` | Yes |
-| `JWT_SECRET` | A long random string | Yes |
-| `CORS_ORIGIN` | `https://your-app.vercel.app` | Yes (your frontend URL) |
+In the **backend** Vercel project → **Settings** → **Environment Variables**, add for **Production**:
 
-Set `NEXT_PUBLIC_API_URL` to your deployment URL + `/api` (e.g. `https://your-app.vercel.app/api`) so the frontend uses the same-domain API. If you leave it unset, the app would default to `http://localhost:4000/api`, which would fail in production.
+| Variable | Example |
+|----------|---------|
+| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/tracker` |
+| `JWT_SECRET` | A long random string |
+| `CORS_ORIGIN` | `https://bussiness-tracker-app.vercel.app` (your frontend URL) |
 
-### 3. Local dev
+Redeploy the backend after adding env vars.
+
+### 3. Point the frontend to the backend
+
+In the **frontend** Vercel project → **Settings** → **Environment Variables**, add:
+
+| Variable | Value |
+|----------|--------|
+| `NEXT_PUBLIC_API_URL` | `https://tracker-api-xxx.vercel.app/api` (your backend URL + `/api`) |
+
+Redeploy the frontend so the new API URL is used.
+
+### 4. Local dev
 
 - **API:** `npm run dev:server` (Express on port 4000).
 - **Frontend:** `npm run dev` (Next.js on port 3000).
 - Use `.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:4000/api` so the frontend talks to the local API.
+
+---
+
+## Deploying to Vercel (one project: frontend + API)
+
+Alternatively, **one Vercel deployment** can serve both the Next.js app and the Express API via the catch-all route at `app/api/[[...path]]`. Use this if you prefer a single project and URL.
+
+- Set **frontend** env vars: `MONGODB_URI`, `JWT_SECRET`, `CORS_ORIGIN`, and optionally `NEXT_PUBLIC_API_URL` (same origin).
+- See the repo for the combined setup; the **recommended** approach is deploying the backend separately (above).
