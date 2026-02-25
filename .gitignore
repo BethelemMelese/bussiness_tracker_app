@@ -1,15 +1,51 @@
-# v0 runtime files
-__v0_runtime_loader.js
-__v0_devtools.tsx
-__v0_jsx-dev-runtime.ts
-
-# Common ignores
+############################
+# Dependencies
+############################
 node_modules/
+
+############################
+# Build output
+############################
 .next/
+out/
+build/
+dist/
+.turbo/
+
+############################
+# TypeScript
+############################
+*.tsbuildinfo
+
+############################
+# Logs
+############################
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+############################
+# Environment & secrets
+############################
 .env
-.env*.local
-.env.example
-.env.local.example
-.env/local.example
+.env.*
 server/.env
+client/.env
+
+############################
+# OS / editor files
+############################
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+############################
+# Misc
+############################
+.vercel/
+*.swp
+*.swo
