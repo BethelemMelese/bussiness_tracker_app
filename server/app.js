@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import { connectDB } from './config/db.js'
 import authRoutes from './routes/auth.js'
 import capitalRoutes from './routes/capital.js'
 import studyRoutes from './routes/study.js'
@@ -29,6 +30,17 @@ app.use(
   })
 )
 app.use(express.json())
+
+// Ensure MongoDB is connected before any route that uses DB (fixes Vercel serverless cold starts)
+app.use(async (req, res, next) => {
+  if (req.method === 'GET' && req.path === '/api/health') return next()
+  try {
+    await connectDB()
+    next()
+  } catch (err) {
+    next(err)
+  }
+})
 
 app.use('/api/auth', authRoutes)
 app.use('/api/capital', capitalRoutes)
