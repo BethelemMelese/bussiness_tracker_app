@@ -100,7 +100,7 @@ In the **backend** Vercel project → **Settings** → **Environment Variables**
 |----------|---------|
 | `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/tracker` |
 | `JWT_SECRET` | A long random string |
-| `CORS_ORIGIN` | `https://bussiness-tracker-app.vercel.app` (your frontend URL) |
+| `CORS_ORIGIN` | `https://bussiness-tracker-app.vercel.app` (no trailing slash; optional — any `*.vercel.app` is allowed) |
 
 Redeploy the backend after adding env vars.
 

@@ -14,15 +14,17 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .map((o) => o.trim())
   .filter(Boolean)
 
+// Allow requests with no origin (e.g. Postman), exact match, or any *.vercel.app (preview + prod)
+function corsOriginCheck(origin, callback) {
+  if (!origin) return callback(null, true)
+  if (corsOrigins.includes(origin)) return callback(null, true)
+  if (origin.endsWith('.vercel.app')) return callback(null, true)
+  callback(new Error('Not allowed by CORS'))
+}
+
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || corsOrigins.includes(origin)) {
-        callback(null, true)
-      } else {
-        callback(new Error('Not allowed by CORS'))
-      }
-    },
+    origin: corsOriginCheck,
     credentials: true,
   })
 )
