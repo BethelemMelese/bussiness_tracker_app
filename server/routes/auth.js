@@ -55,6 +55,7 @@ router.get('/me', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
+    console.log('login request', req.body)
     const { email, password } = req.body
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' })
@@ -77,6 +78,7 @@ router.post('/login', async (req, res) => {
       user: { id: user._id, email: user.email, name: user.name },
     })
   } catch (error) {
+    console.log('login error', error)
     res.status(500).json({ message: error.message })
   }
 })
